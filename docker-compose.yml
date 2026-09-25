@@ -1,38 +1,69 @@
-﻿version: '3.8'
-
+version: '3.8'
 services:
   postgres:
     image: postgres:15
     environment:
       POSTGRES_USER: admin
-      POSTGRES_PASSWORD: root
+      POSTGRES_PASSWORD: password
       POSTGRES_DB: deltafunc
     ports:
-      - "5434:5432"
+    - 5432:5432
     volumes:
-      - pgdata:/var/lib/postgresql/data
-    restart: always
-
+    - postgres_data:/var/lib/postgresql/data
   redis:
     image: redis:alpine
     ports:
-      - "6380:6379"
-    restart: always
-
-  n8n:
-    image: docker.n8n.io/n8nio/n8n
-    ports:
-      - "5679:5678"
-    environment:
-      - N8N_HOST=localhost
-      - N8N_PORT=5678
-      - N8N_PROTOCOL=http
-      - NODE_ENV=production
-      - WEBHOOK_URL=http://localhost:5679/
+    - 6379:6379
     volumes:
-      - n8n_data:/home/node/.n8n
-    restart: always
-
+    - redis_data:/data
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports:
+    - 6333:6333
+    volumes:
+    - qdrant_data:/qdrant/storage
+  clickhouse:
+    image: clickhouse/clickhouse-server
+    ports:
+    - 8123:8123
+    - 9000:9000
+    volumes:
+    - clickhouse_data:/var/lib/clickhouse
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+  offer_analyzer:
+    build:
+      context: .
+      dockerfile: services/offer_analyzer/Dockerfile
+    env_file:
+    - .env
+    ports:
+    - 8000:8000
+    depends_on:
+    - postgres
+    - redis
+  traffic_router:
+    build:
+      context: .
+      dockerfile: services/traffic_router/Dockerfile
+    env_file:
+    - .env
+    ports:
+    - 8001:8001
+  manager_assistant:
+    build:
+      context: .
+      dockerfile: services/manager_assistant/Dockerfile
+    env_file:
+    - .env
+    ports:
+    - 8002:8002
+    depends_on:
+    - qdrant
 volumes:
-  pgdata:
-  n8n_data:
+  postgres_data: null
+  redis_data: null
+  qdrant_data: null
+  clickhouse_data: null
