@@ -1,33 +1,22 @@
-﻿import os
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import declarative_base, sessionmaker
-from sqlalchemy import Column, Integer, String, Float, DateTime
-from datetime import datetime
+import os
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker, declarative_base
+from dotenv import load_dotenv
 
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://admin:root@localhost:5434/deltafunc")
+load_dotenv()
 
-engine = create_async_engine(DATABASE_URL, echo=False)
-AsyncSessionLocal = sessionmaker(
-    bind=engine, class_=AsyncSession, expire_on_commit=False
-)
+# Build postgres URL from env
+user = os.getenv("POSTGRES_USER", "admin")
+password = os.getenv("POSTGRES_PASSWORD", "password")
+host = os.getenv("POSTGRES_HOST", "localhost")
+port = os.getenv("POSTGRES_PORT", "5432")
+db = os.getenv("POSTGRES_DB", "deltafunc")
+
+DATABASE_URL = f"postgresql://{user}:{password}@{host}:{port}/{db}"
+
+engine = create_engine(DATABASE_URL)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
-class OfferAnalysis(Base):
-    __tablename__ = "offer_analysis"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    offer_id = Column(String, index=True)
-    title = Column(String)
-    category = Column(String)
-    risk_score = Column(Float)
-    geos = Column(String) # comma separated
-    status = Column(String, default="processed")
-    created_at = Column(DateTime, default=datetime.utcnow)
-
-async def init_db():
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-
-async def get_db():
-    async with AsyncSessionLocal() as session:
-        yield session
+def init_db():
+    Base.metadata.create_all(bind=engine)

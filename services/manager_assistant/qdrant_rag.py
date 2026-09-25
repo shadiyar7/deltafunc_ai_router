@@ -1,10 +1,17 @@
-﻿from qdrant_client import QdrantClient
+import os
+from qdrant_client import QdrantClient
 from qdrant_client.http.models import Distance, VectorParams, PointStruct
 from sentence_transformers import SentenceTransformer
+from dotenv import load_dotenv
 
-print("Initializing Qdrant In-Memory Vector DB for Competitor Analysis...")
+load_dotenv()
 
-client = QdrantClient(":memory:")
+qdrant_host = os.getenv("QDRANT_HOST", "localhost")
+qdrant_port = int(os.getenv("QDRANT_PORT", "6333"))
+
+print(f"Connecting to Qdrant at {qdrant_host}:{qdrant_port}...")
+
+client = QdrantClient(host=qdrant_host, port=qdrant_port)
 model = SentenceTransformer('all-MiniLM-L6-v2')
 
 if not client.collection_exists("competitor_offers"):
@@ -13,32 +20,14 @@ if not client.collection_exists("competitor_offers"):
         vectors_config=VectorParams(size=384, distance=Distance.COSINE),
     )
 
-mock_offers = [
-    {"id": 1, "text": "Keto Diet Pills - Lose 10kg in 2 weeks! Works best in IT and ES.", "category": "Nutra"},
-    {"id": 2, "text": "Crypto Auto Trader - Guaranteed 500% ROI. Hot in DE.", "category": "Crypto"},
-    {"id": 3, "text": "Dating App for Singles over 40. High conversion in US.", "category": "Dating"}
-]
+def search_competitors(query: str):
+    vector = model.encode(query).tolist()
+    hits = client.query_points(
+        collection_name="competitor_offers",
+        query=vector,
+        limit=1
+    ).points
+    return hits
 
-print("Embedding and storing competitor offers in Vector DB...")
-points = []
-for offer in mock_offers:
-    vector = model.encode(offer["text"]).tolist()
-    points.append(PointStruct(id=offer["id"], vector=vector, payload=offer))
-
-client.upsert(
-    collection_name="competitor_offers",
-    points=points
-)
-
-query = "What Nutra diet offers are competitors running in Italy?"
-print(f"\nQuery: {query}")
-query_vector = model.encode(query).tolist()
-
-hits = client.query_points(
-    collection_name="competitor_offers",
-    query=query_vector,
-    limit=1
-).points
-
-for hit in hits:
-    print(f"RAG Match Found: {hit.payload['text']} (Score: {hit.score})")
+if __name__ == '__main__':
+    print("Test Search:", search_competitors("Nutra diet offers"))
